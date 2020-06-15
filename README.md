@@ -12,7 +12,7 @@ The flowchart articulates in multiple steps:
 
 Single-cell transcriptomics were carried out with the aid of the Seurat package, whereas differential expression analysis was conducted using fgsea combined with gene sets drawn from the molecular signature databases. 
 
-##Organization of the repository
+#Organization of the repository
 
 The repository is organized in three distinct folders:
 1. The folder *Data* contains the datasets we utilized during the analysis,

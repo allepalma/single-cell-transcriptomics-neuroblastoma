@@ -15,6 +15,7 @@ b_rc <- rawcounts
 load('be2c-tpms.rda')
 b_tpms <- tpms
 
+#Remove the genes that are unexpressed.
 b_rc <- b_rc[apply(b_rc,1,sum)!=0,]
 
 
@@ -73,7 +74,7 @@ dev.off()
 b1 <- b_norm[,names(cluster1)]
 b2 <- b_norm[,names(cluster2)]
 
-#Differential expression analysis
+#We now perform differential expression analysis and pathway enrichment analysis applying a t-test to draw gene singatures.
 #Differential expression analysis with a t-test
 manual_set <- cbind(b1,b2)
 ps<-apply(manual_set,1,function(x){
@@ -95,7 +96,7 @@ significant_b <- results_b[results_b$padj<0.05 ]
 View(significant_b)
 
   
-#Graph the significant pathways
+#Graph the significant pathways.
 png('b_score.png',width=3000,height=2000, res=90)
 par(mar=c(4,1,3,1))
 plot_sign <- significant_b$NES
@@ -188,7 +189,7 @@ bands <- rep(NA,20440)
 names(bands) <- rownames(tpms1)
 
 
-#assign genes to the respective band only if it meets a standard format
+#Assign genes to the respective band only if it meets a standard format chrNUMBERp|qNUMBER
 for (i in 1:length(names(chrom_bands))){
   common <- intersect(names(bands),unlist(msigdb[i]))
   split <- unlist(strsplit(names(msigdb)[i],split=';_;'))[2]

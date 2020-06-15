@@ -27,7 +27,7 @@ b_rc <- b_rc[keep,]
 data_matrix <- cbind(k_rc,b_rc)
 dim(data_matrix)
 
-#We will add a "k" to all KELLY cells and a "b" to all BE(2)C cells to create two distinct groups in
+#We will append a "k" to all colnames KELLY cells and a "b" to all colnames of BE(2)C cells to create two distinct groups in
 #the Seurat object.
 colnames(data_matrix) <- c(paste(colnames(data_matrix)[1:1105],'-k',sep=''),
                            paste(colnames(data_matrix)[1106:ncol(data_matrix)],'-b',sep=''))
@@ -40,7 +40,7 @@ seurat_expmat <- FindVariableFeatures(seurat_expmat, selection.method = "vst", n
 all.genes <- rownames(seurat_expmat)
 seurat_expmat <- ScaleData(seurat_expmat, features = all.genes)
 
-#Do Seurat based clustering
+#Do Seurat-based clustering
 PCA <- RunPCA(seurat_expmat, features = VariableFeatures(seurat_expmat))
 DimPlot(PCA, reduction = "pca")+ggtitle('PCA clustering of the two cell lines')+
   theme(plot.title = element_text(hjust = 0.5))
@@ -59,18 +59,15 @@ png('umap_be2c_kelly.png',width=800,height=800, res=150)
 DimPlot(UMAP, reduction = 'umap')+ggtitle('UMAP clustering KELLY vs SK-N-BE(2)-C')+  theme(plot.title = element_text(hjust = 0.5))
 dev.off()
 
-# Find differentially expressed features between 2 conditions
+# Find differentially expressed features between 2 conditions through fold change calculations.
 diff_markers <- FindMarkers(seurat_expmat, ident.1 = "b", ident.2 = "k",
                                logfc.threshold = 0,min.pct = 0,pseudocount.use = 0.25,slot='data')
-
-#significance is -log(padj)
 p.adj <- diff_markers$p_val_adj #Check the adjusted p-values.
 FC <- diff_markers$avg_logFC #Check the average log fold changes.
 names(FC) <- rownames(diff_markers)
 
-#Produce a MA plot of log average expression vs log average fold change.
+#Produce a MAplot of log average expression vs log average fold change.
 data_matrix_mean <- apply(data_matrix,1,mean)[names(FC)]
-
 png('mean_expr_fold_change.png',width=600,height = 600, res=120)
 col=ifelse(p<0.01,'red','black')
 plot(log10(data_matrix_mean),signature,pch=20,xlab='log10 mean expression',

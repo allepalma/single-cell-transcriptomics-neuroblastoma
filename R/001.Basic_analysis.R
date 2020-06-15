@@ -1,5 +1,8 @@
-#In this script we get acquainted with the datasets under study performing
-#basic analysis and inspection of the most expressed and variable genes.
+#This script is dedicated to the performance of basic analytics on the single-cell datasets 
+#of neuroblastoma cell lines of interest. First of all, we will invesitgate on general expression
+#behaviours and affinities between the transcription profiles of the two cell lines. Then we will
+#move to the chromosome-wide mapping of the mean TPM counts of genes in both KELLY and 
+#SK-N-BE(2)-C.
 
 library(Seurat)
 library(ggplot2)
@@ -43,6 +46,7 @@ View(sort(mean_tpm_b,decreasing=T)[1:100])
 
 
 #Check the 100 most expressed genes in terms of cumulative and average raw counts
+
 #Kelly
 cum_rc_k <- apply(k_rawcounts,1,sum)
 mean_rc_k <- apply(k_rawcounts,1,mean)
@@ -55,13 +59,10 @@ mean_rc_b <- apply(b_rawcounts,1,mean)
 View(sort(cum_rc_b,decreasing=T)[1:100])
 View(sort(mean_rc_b,decreasing=T)[1:100])
 
-#Is ACE2 expressed?
-cum_rc_k['ACE2']
-cum_rc_b['ACE2']
-#It is unexpressed.
 
-#Assess anticorrelation of MYC and MYCN expression and expression diff in other genes
-#through the production of error bars.
+#Draw error bars to compare the expression level of MYCN across the two cell lines of interest
+#and validate the expected anti-correlation of MYCN and MYC genes when the former is
+#amplified. 
 bar_names <- c('MYC','RPS2','GAPDH','ACTB','RPL37A','MYCN','TEAD4',"HIST1H4C","MIR92B",'NPY',
                'MYBL2','PRDM8','HMGB2')
 #Code for the confidence interval of the transformed counts
@@ -101,7 +102,6 @@ b_bool <- ifelse(b_tpms>0,1,0)
 b_no_of_cells <- apply(b_bool,1,sum)
 sort(b_no_of_cells,decreasing=T)[1:20]
 
-#The gene expressed in more cells is RPL22 for both cell lines 
 genes_scatter<- c('MYCN','ALK','TEAD4','PHOX2B','PHOX2A',
                   'RPS2','GAPDH','ACTB',
                   'LGALS1','VIM','S100A6', 'DLK1', 'IGF2','CHGA')
@@ -123,7 +123,7 @@ par(mfrow=c(1,1))
 dev.off()
 
 
-#Plot the correlation of expression between the 2 cells 
+#Plot the correlation of log mean expression between the 2 cells 
 png('correlation_expressions_kelly_be2c.png',width = 1000,height=1000, res=100)
 plot(log10(mean_tpm_k),log10(mean_tpm_b),pch=16,col='cadetblue',
      xlab = 'log10(Mean TPMs Kelly)',ylab='log10(Mean TPMs Be2c)',main='Correlation of mean TPM counts',
@@ -144,10 +144,10 @@ marker_genes <- c('GAPDH','ACTB','NPY','MYCN','ALK','PHOX2B','HAND2','GATA3','TP
 #Generate two separate Seurat objects for KELLY and SK-N-BE(2)-C
 k_seurat <- CreateSeuratObject(k_tpms)
 b_seurat <- CreateSeuratObject(b_tpms)
-#Find the most variable features thorugh Seurat.
+#Find the 1000 most variable features thorugh Seurat.
 k_seurat <- FindVariableFeatures(k_seurat,nfeatures=1000)
 b_seurat <- FindVariableFeatures(b_seurat,nfeatures=1000)
-#Plot the most variabl features.
+#Plot the most variable features.
 png('variable_genes_seurat_k.png',width=800,height=600, res=110)
 plot1 <- VariableFeaturePlot(k_seurat,cols=c('red','coral'))
 plot2 <- LabelPoints(plot = plot1, points = marker_genes,repel=T,fontface='bold',size=5)
@@ -165,7 +165,7 @@ dev.off()
 load('annotation.rda')
 msigdb <- msigdb
 
-#Since it contains a lot of information, reduce what is inside to the gene pertitions
+#Since it contains a lot of information, reduce what is inside to the gene partitions
 #across chromosomal bands.
 chrom_bands <- msigdb[grep("c1_all",names(msigdb))] 
 
@@ -174,7 +174,7 @@ bands <- rep(NA,20440)
 names(bands) <- rownames(k_tpms)
 
 
-#assign genes to the respective band only if it meets a standard format
+#Assign genes to the respective band only if the latter attains the format chrNUMBERp|qNUMBER.
 for (i in 1:length(names(chrom_bands))){
   common <- intersect(names(bands),unlist(msigdb[i]))
   split <- unlist(strsplit(names(msigdb)[i],split=';_;'))[2]

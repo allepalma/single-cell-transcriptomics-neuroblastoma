@@ -1,6 +1,7 @@
 #In the present script, we will compare the average normalized counts of 
-#our single-cell-sequenced data and the ones collected from the Harenza's
-#bulk RNA-seq dataset of neuroblastoma cell lines.
+#our single-cell-sequenced data and the ones collected from the the
+#bulk RNA-seq dayaset of neuroblastoma of the 2017 article
+#"Transcriptomic profiling of 39 commonly-used neuroblastoma cell lines" by Harenza et al.
 
 library(Seurat)
 library(wordcloud)

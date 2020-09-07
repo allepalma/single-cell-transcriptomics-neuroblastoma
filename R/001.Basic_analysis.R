@@ -21,19 +21,13 @@ load('be2c-tpms.rda')
 b_rawcounts <- rawcounts
 b_tpms <- tpms
 
-
-#Remove the features that are unexpressed in both conditions.
-keep <- !(apply(k_tpms,1,sum)==0 & apply(b_tpms,1,sum)==0)
-k_tpms <- k_tpms[keep,]
-b_tpms <- b_tpms[keep,]
-
 #Check the 100 most expressed genes in terms of cumulative and average TPMs.
 
 #Kelly
-cum_tpms_k <- apply(k_tpms,1,sum)
+cum_tpm_k <- apply(k_tpms,1,sum)
 mean_tpm_k <- apply(k_tpms,1,mean)
 View(sort(cum_tpms_k,decreasing=T)[1:100])
-View(sort(mean_tpm_k,decreasing=T)[1:100])
+View(sort(mean_tpms_k,decreasing=T)[1:100])
 
 #be2c
 cum_tpms_b <- apply(b_tpms,1,sum)
@@ -60,9 +54,8 @@ cum_rc_k['ACE2']
 cum_rc_b['ACE2']
 #It is unexpressed.
 
-#Assess anticorrelation of MYC and MYCN expression and expression diff in other genes
-#through the production of error bars.
-bar_names <- c('MYC','RPS2','GAPDH','ACTB','RPL37A','MYCN','TEAD4',"HIST1H4C","MIR92B",'NPY',
+#Error bars
+bar_names <- c('MYC','MYCN','RPS2','GAPDH','ACTB','RPL37A','TEAD4',"HIST1H4C","MIR92B",'NPY',
                'MYBL2','PRDM8','HMGB2')
 #Code for the confidence interval of the transformed counts
 bar_k_mean <- apply(log2(k_tpms[bar_names,]+1),1,mean)
@@ -73,7 +66,7 @@ bar_b_sd <- apply(log2(b_tpms[bar_names,]+1),1,sd)
 
 #A function to add arrows on the chart (for confidence interval representation).
 error.bar <- function(x, y, upper, lower=upper, length=0.1,...){
-  arrows(x,y+upper, x, y-lower, angle=90, code=3, length=length, ...)
+  arrows(x,y+upper, x, y, angle=90, code=3, length=length, ...)
 }
 
 #Plot the error bars.
@@ -93,7 +86,7 @@ dev.off()
 #Plot the number of cells in which a gene is expressed vs the log mean expression of
 #the gene.
 
-k_bool <- ifelse(k_tpms>0,1,0)
+k_bool <- ifelse(k_tpms>0,1,0) #If a gene is expressed in a cell count it as 1 
 k_no_of_cells <- apply(k_bool,1,sum)
 sort(k_no_of_cells,decreasing=T)[1:20]
 
@@ -106,34 +99,34 @@ genes_scatter<- c('MYCN','ALK','TEAD4','PHOX2B','PHOX2A',
                   'RPS2','GAPDH','ACTB',
                   'LGALS1','VIM','S100A6', 'DLK1', 'IGF2','CHGA')
 
-png(filename ='no_cells_vs_log10_tpms.png',width = 800, height = 700, res=100)
-par(mfrow=c(1,2))
+png(filename ='no_cells_vs_log10_tpms_be.png',width = 800, height = 700, res=100)
 plot(x=b_no_of_cells,y=log10(mean_tpm_b),xlab='Cells with Gene',ylab = 'log10 mean expression in TPM',
      main='be2c scRNA seq', pch=16,col='coral',xlim = c(0,1100),cex.lab=1.5,cex.main=1.6)
 textplot(b_no_of_cells[genes_scatter],log10(mean_tpm_b)[genes_scatter],
-         words=genes_scatter,cex=1,font=c(rep(2,5),rep(3,4),rep(4,6)),new=F,ylim=c(-3,4),xlim=c(0,1000))
+         words=genes_scatter,cex=1,font=c(rep(2,5),rep(3,4),rep(4,6)),new=F,ylim=c(-3,4),xlim=c(0,700))
 legend('topleft',legend= c('NBL genes','Houskeeping','DE genes'), text.font = c(2,3,4))
+dev.off()
 
+png(filename ='no_cells_vs_log10_tpms_ke.png',width = 800, height = 700, res=100)
 plot(x=k_no_of_cells,y=log10(mean_tpm_k),xlab='Cells with Gene',ylab = 'log10 mean expression in TPM',
-     main='Kelly scRNA seq', pch=16,col='cyan3',xlim = c(0,1200),cex.lab=1.5,cex.main=1.6)
+     main='kelly scRNA seq', pch=16,col='cyan3',xlim = c(0,1200),cex.lab=1.5,cex.main=1.6)
 textplot(k_no_of_cells[genes_scatter],log10(mean_tpm_k)[genes_scatter],
          words=genes_scatter,cex=1,font=c(rep(2,5),rep(3,4),rep(4,6)),new=F,ylim=c(-3,4),xlim=c(0,1000))
 legend('topleft',legend= c('NBL genes','Houskeeping','DE genes'), text.font = c(2,3,4))
-par(mfrow=c(1,1))
 dev.off()
 
 
 #Plot the correlation of expression between the 2 cells 
-png('correlation_expressions_kelly_be2c.png',width = 1000,height=1000, res=100)
+png('correlation_expressions_kelly_be2c.png',width = 1000,height=1000)
 plot(log10(mean_tpm_k),log10(mean_tpm_b),pch=16,col='cadetblue',
      xlab = 'log10(Mean TPMs Kelly)',ylab='log10(Mean TPMs Be2c)',main='Correlation of mean TPM counts',
      cex.lab=1.6,cex.main=2)
 grid()
 textplot(log10(mean_tpm_k[genes_scatter]),log10(mean_tpm_b[genes_scatter]),
          words=genes_scatter,cex=1.5,new=F,font=2)
-cor <- cor.test(log10(mean_tpm_k),log10(mean_tpm_b),method='spearman')
-text(0,4,labels = paste('p.value <','e-108'),cex=2)
-text(0,4.5,labels = paste('r =',as.character(round(cor$estimate,digits = 2))),cex=2)
+cor <- cor.test(log10(mean_tpm_k+1),log10(mean_tpm_b+1),method='spearman')
+text(0,4,labels = paste('p.value <','2.2e-16'),cex=2)
+text(0,4.5,labels = paste('rho =',as.character(round(cor$estimate,digits = 2))),cex=2)
 dev.off()
 
 
@@ -162,7 +155,6 @@ dev.off()
 #Now we will map the mean TPMs on the respective chromosomal bands.
 
 #Fetch the msigdb object saved under annotation.rda.
-load('annotation.rda')
 msigdb <- msigdb
 
 #Since it contains a lot of information, reduce what is inside to the gene pertitions
@@ -174,7 +166,7 @@ bands <- rep(NA,nrow(k_tpms))
 names(bands) <- rownames(k_tpms)
 
 
-#assign genes to the respective band only if it meets a standard format
+#assign genes to the respective band only if they meet a standard format as chrNUMBERp|qNUMBER
 for (i in 1:length(names(chrom_bands))){
   common <- intersect(names(bands),unlist(msigdb[i]))
   split <- unlist(strsplit(names(msigdb)[i],split=';_;'))[2]

@@ -7,8 +7,7 @@ library(ggplot2)
 library(msigdbr)
 library(fgsea)
 library(htmlTable)
-library(DescTools)
-library(corto)
+
 
 
 #Load the datsets.
@@ -22,17 +21,12 @@ keep <- !(apply(k_rc,1,sum)==0 & apply(b_rc,1,sum)==0)
 k_rc <- k_rc[keep,]
 b_rc <- b_rc[keep,]
 
+k_seu <- CreateSeuratObject(k_rc)
+b_seu <- CreateSeuratObject(b_rc) 
+seurat_expmat <- merge(k_seu, b_seu, add.cell.ids=c('k','b'))
+idents <- c(rep('k', 1105),rep('b',962))
+Idents(seurat_expmat) <- idents
 
-#Let us set up the Seurat object of the joint matrix for clustering.
-data_matrix <- cbind(k_rc,b_rc)
-dim(data_matrix)
-
-#We will append a "k" to all colnames KELLY cells and a "b" to all colnames of BE(2)C cells to create two distinct groups in
-#the Seurat object.
-colnames(data_matrix) <- c(paste(colnames(data_matrix)[1:1105],'-k',sep=''),
-                           paste(colnames(data_matrix)[1106:ncol(data_matrix)],'-b',sep=''))
-
-seurat_expmat <-  CreateSeuratObject(data_matrix,names.field = 3,names.delim = '-')
 
 #Clustering, variable feature selection and filtering.
 seurat_expmat <- NormalizeData(seurat_expmat,normalization.method = 'LogNormalize',scale.factor = 10000)
@@ -40,37 +34,40 @@ seurat_expmat <- FindVariableFeatures(seurat_expmat, selection.method = "vst", n
 all.genes <- rownames(seurat_expmat)
 seurat_expmat <- ScaleData(seurat_expmat, features = all.genes)
 
-#Do Seurat-based clustering
+#Do Seurat based clustering
 PCA <- RunPCA(seurat_expmat, features = VariableFeatures(seurat_expmat))
-DimPlot(PCA, reduction = "pca")+ggtitle('PCA clustering of the two cell lines')+
-  theme(plot.title = element_text(hjust = 0.5))
+
 
 #TSNE dimensional reduction.
 set.seed(1)
 TSNE <- RunTSNE(PCA)
 png('tsne_seurat_clusterng.png',width=800,height=800, res=150)
-DimPlot(TSNE, reduction = "tsne")+ggtitle('TSNE clustering KELLY vs SK-N-BE(2)-C')+  theme(plot.title = element_text(hjust = 0.5))
+DimPlot(TSNE, reduction = "tsne", cols=c('cyan3','coral'))+ggtitle('TSNE clustering KELLY vs SK-N-BE(2)-C')+  theme(plot.title = element_text(hjust = 0.5))
 dev.off()
 
 #UMAP dimensional reduction.
 set.seed(1)
 UMAP <- RunUMAP(PCA, dims = 1:10)
 png('umap_be2c_kelly.png',width=800,height=800, res=150)
-DimPlot(UMAP, reduction = 'umap')+ggtitle('UMAP clustering KELLY vs SK-N-BE(2)-C')+  theme(plot.title = element_text(hjust = 0.5))
+DimPlot(UMAP, reduction = 'umap',cols=c('cyan3','coral'))+ggtitle('UMAP clustering KELLY vs SK-N-BE(2)-C')+  theme(plot.title = element_text(hjust = 0.5))
 dev.off()
 
-# Find differentially expressed features between 2 conditions through fold change calculations.
+# Find differentially expressed features between 2 conditions
 diff_markers <- FindMarkers(seurat_expmat, ident.1 = "b", ident.2 = "k",
                                logfc.threshold = 0,min.pct = 0,pseudocount.use = 0.25,slot='data')
+
+#significance is -log(padj)
 p.adj <- diff_markers$p_val_adj #Check the adjusted p-values.
 FC <- diff_markers$avg_logFC #Check the average log fold changes.
 names(FC) <- rownames(diff_markers)
 
 #Produce a MAplot of log average expression vs log average fold change.
+data_matrix <- cbind(k_rc,b_rc)
 data_matrix_mean <- apply(data_matrix,1,mean)[names(FC)]
+
 png('mean_expr_fold_change.png',width=600,height = 600, res=120)
-col=ifelse(p<0.01,'red','black')
-plot(log10(data_matrix_mean),signature,pch=20,xlab='log10 mean expression',
+col=ifelse(p.adj<0.01,'red','black')
+plot(log10(data_matrix_mean),FC,pch=20,xlab='log10 mean expression',
      ylab='Average log fold change',main='Mean expression vs Fold change plot',col=col)
 legend('topright',legend=c('significant','non-significant'),pch=20,col=c('red','black'))
 dev.off()
@@ -85,14 +82,12 @@ k_seu <- NormalizeData(k_seu)
 b_seu <- NormalizeData(b_seu)
 k_seu <- ScaleData(k_seu,features=rownames(k_seu)) 
 b_seu <- ScaleData(b_seu,features=rownames(b_seu))
-k_seu <- RunPCA(k_seu, features = rownames(k_seu))
-b_seu <- RunPCA(b_seu, features = rownames(b_seu))
 
 
 #Perform a t-test to draw gene signatures. 
-manual_set <- cbind(GetAssayData(b_seu,slot='data'),GetAssayData(k_seu,slot='data'))
-ps<-apply(manual_set,1,function(x){
-  tt<-t.test(x[1:ncol(b_seu)],x[(ncol(b_seu)+1):ncol(manual_set)])
+joint_mat <- cbind(GetAssayData(b_seu,slot='data'),GetAssayData(k_seu,slot='data'))
+ps<-apply(joint_mat,1,function(x){
+  tt<-t.test(x[1:ncol(b_seu)],x[(ncol(b_seu)+1):ncol(joint_mat)])
   return(cbind(p.adjust(tt$p.value),tt$statistic))
 })
 ps <- t(ps)
@@ -105,7 +100,7 @@ signature_t <- ps[ps[,1]<0.05,2]
 #Now draw out the list of genes of interest from the msigdb.
 msigdbr_show_species()
 mdf<-msigdbr(species="Homo sapiens") # Retrieve all human gene sets
-mlist<-mdf %>% split(x=.$gene_symbol,f=.$gs_name) #%>% works as pipe operator.
+mlist<-mdf %>% split(x=.$gene_symbol,f=.$gs_name) 
 plength<- sapply(mlist,length) #See how many genes for each path.
 
 #Run fast GSEA (fgsea) on the drawn gene signatures.
@@ -155,8 +150,6 @@ View(sorted_significant_f)
 table_paths <- htmlTable(sorted_significant_f,ctable=T,rowlabel='Path names',
                    align.header='l',cgroup='Differentially expressed pathways')
 write(table_paths,file='diff_pathways_kelly_be2c.html')
-
-
 
 
 

@@ -1,7 +1,6 @@
 #In the present script, we will compare the average normalized counts of 
-#our single-cell-sequenced data and the ones collected from the the
-#bulk RNA-seq dayaset of neuroblastoma of the 2017 article
-#"Transcriptomic profiling of 39 commonly-used neuroblastoma cell lines" by Harenza et al.
+#our single-cell-sequenced data and the ones collected from the Harenza's
+#bulk RNA-seq dataset of neuroblastoma cell lines.
 
 library(Seurat)
 library(wordcloud)
@@ -25,12 +24,6 @@ bulk_rawcounts <- rawcounts
 #Check the dimension of the TPM-normalized bulk counts.
 dim(bulk_tpms)
 
-
-#Once again, remove non-expressed genes from KELLY and BE(2)C cells.
-keep <- !(apply(k_tpms,1,sum)==0 & apply(b_tpms,1,sum)==0)
-k_tpms <- k_tpms[keep,]
-b_tpms <- b_tpms[keep,]
-
 #Setup the names to assign to the single-cell mean TPMs columns.
 b <- 'sc-SK-N-BE-2--C'
 k <- 'sc-KELLY'
@@ -39,7 +32,7 @@ k <- 'sc-KELLY'
 sckelly <- apply(k_tpms,1,mean)
 scbe2c <- apply(b_tpms, 1,mean)
 
-#Generate a unique dataset containin as columns the bulk TPMs together with the average TPMs for KELLY and
+#Generate a unique dataset containing as columns the bulk TPMs together with the average TPMs for KELLY and
 #SK-N-BE(2)-C cells.
 total_dataset <- bulk_tpms
 nrow(bulk_tpms)
@@ -57,13 +50,6 @@ dim(total_dataset)
 
 #Now we generate a Spearman correlation table associating the cells sequenced with our
 #method with the ones derived from the bulk-RNA-seq dataset.
-
-#Homogenize the separate.
-keep <- intersect(rownames(bulk_tpms), rownames(k_tpms))
-sckelly_cor <- sckelly[keep]
-scbe2c_cor <- scbe2c[keep]
-bulk_tpms_cor <- bulk_tpms[keep,]
-
 
 #Calculate the correlation coefficients for both KELLY and SK-N-BE(2)-C cells.
 cor_kelly <-apply(total_dataset,2,function(x){
@@ -94,15 +80,13 @@ write(b_html,file='be2c_table.html')
 
 
 #Perform hierarchical clustering on the joint dataset of KELLY and SK-N-BE(2)-C.
-methods <- c( "ward.D2", "single", "mcquitty") 
-
 png('HM_bulk_ss.png',width=800,height=850)
 cormat <- cor(total_dataset,method='spearman')
 distmat<-as.dist(1-cormat)
 hcc<-hclust(distmat,method='average')
 hcd<-as.dendrogram(hcc,horiz=T)
 plot(hcd,main='Hierarchical clustering on the joint sc and bulk dataset',
-     cex.main=2,font=2)
+     cex.main=2,font=2, ylab = 'Correlation distance', cex.lab=1.5)
 dev.off()
 
 

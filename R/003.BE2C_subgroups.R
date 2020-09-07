@@ -1,6 +1,6 @@
 #This script is dedicated to the study of expression of heterogeneity of two
 #sub-populations of SK-N-BE(2)-C cells. We first individuate the two groups
-#through unsupervised k-means clustering. Then we submit the result to basic pathway enrichment analysis.
+#through unsupervised k-means clustering. Then, we submit the results to basic pathway enrichment analysis.
 
 
 library(Seurat)
@@ -8,6 +8,7 @@ library(msigdbr)
 library(htmlTable)
 library(fgsea)
 library(scatterplot3d)
+library(ggplot2)
 
 #Import the BE(2)C dataset.
 load('be2c-rawcounts.rda')
@@ -15,7 +16,10 @@ b_rc <- rawcounts
 load('be2c-tpms.rda')
 b_tpms <- tpms
 
-#Remove the genes that are unexpressed.
+
+load('annotation.rda')
+
+#Remove unexpressed genes
 b_rc <- b_rc[apply(b_rc,1,sum)!=0,]
 
 
@@ -23,7 +27,7 @@ b_rc <- b_rc[apply(b_rc,1,sum)!=0,]
 b_seu <- CreateSeuratObject(b_rc)
 b_seu <- NormalizeData(b_seu)
 b_seu <- ScaleData(b_seu)
-b_seu <- FindVariableFeatures(b_seu,nfeatures=10000)
+b_seu <- FindVariableFeatures(b_seu,nfeatures=5000)
 b_seu <- RunPCA(b_seu)
 
 #Plot the PCA.
@@ -70,11 +74,18 @@ scatterplot3d(PC1,PC2,PC3,color=col,pch=20,xlab = 'PC1',ylab= 'PC2' , zlab='PC3'
               xlim = c(-50,45),zlim = c(-40,25))
 dev.off()
 
-#Now we have got the two groups, call them b1 and b2
-b1 <- b_norm[,names(cluster1)]
-b2 <- b_norm[,names(cluster2)]
+#Now we have got the two groups, separate them and treat differently
+b1_rc <- b_rc[,names(cluster1)]
+b2_rc <- b_rc[,names(cluster2)]
+b1_rc_seu <- CreateSeuratObject(b1_rc)
+b2_rc_seu <- CreateSeuratObject(b2_rc)
+b1_rc_seu <- NormalizeData(b1_rc_seu)
+b2_rc_seu <- NormalizeData(b2_rc_seu)
 
-#We now perform differential expression analysis and pathway enrichment analysis applying a t-test to draw gene singatures.
+b1 <- GetAssayData(b1_rc_seu,'data')
+b2 <- GetAssayData(b2_rc_seu,'data')
+
+#Differential expression analysis
 #Differential expression analysis with a t-test
 manual_set <- cbind(b1,b2)
 ps<-apply(manual_set,1,function(x){
@@ -96,14 +107,14 @@ significant_b <- results_b[results_b$padj<0.05 ]
 View(significant_b)
 
   
-#Graph the significant pathways.
-png('b_score.png',width=3000,height=2000, res=90)
+#Graph the significant pathways
+png('b_score.png',width=3000,height=2000, res=150)
 par(mar=c(4,1,3,1))
 plot_sign <- significant_b$NES
 names(plot_sign) <- significant_b$pathway
 plot_sign <- plot_sign[order(plot_sign,decreasing = F)]
 to_plot <- c(plot_sign[1:15],plot_sign[(length(plot_sign)-14):length(plot_sign)])
-b <- barplot(to_plot,horiz = T,col=rep(c('cornflowerblue','chartreuse3'),each=15),xlim=c(-5,5),
+b <- barplot(to_plot,horiz = T,col=rep(c('chartreuse3','cornflowerblue'),each=15),xlim=c(-5,5),
              main='Pathway enrichment scores before regression',xlab='NES',cex.main=2, cex.lab=1.6,font=2)
 text(0,b[16:30],names(to_plot)[16:30],pos=2,font=2,cex=1.2)
 text(0,b[1:15],names(to_plot)[1:15],pos=4,font=2,cex=1.2)
@@ -177,7 +188,6 @@ dev.off()
 tpms1 <- tpms[,names(cluster1)]
 tpms2 <- tpms[,names(cluster2)]
 
-load('annotation.rda')
 msigdb <- msigdb
 
 #Since it contains a lot of information, reduce what's inside to only chromosomal band
@@ -189,7 +199,7 @@ bands <- rep(NA,20440)
 names(bands) <- rownames(tpms1)
 
 
-#Assign genes to the respective band only if it meets a standard format chrNUMBERp|qNUMBER
+#assign genes to the respective band only if it meets a standard format
 for (i in 1:length(names(chrom_bands))){
   common <- intersect(names(bands),unlist(msigdb[i]))
   split <- unlist(strsplit(names(msigdb)[i],split=';_;'))[2]
@@ -278,5 +288,45 @@ save(cluster2,'cluster2.rda')
 
 
 
+# Sequential color scheme. 
+# Specify the colors for low and high ends of gradient
+sp <- ggplot(data.frame(PC1=PC1,PC2=PC2), aes(PC1, PC2))+geom_point(aes(color = apply(b_rc, 2,sum)))
 
-  
+#Color on the base if the number of reads
+png('cell_number_color.png', res=150, width=800, height=800)
+sp + scale_color_gradient(low = "blue", high = "red", name='Total number of reads')
+dev.off()
+
+#Fit a linear model to check if the dependence between number of reads and the 
+tot_expr <- apply(b_rc, 2, sum)
+gr1 <- tot_expr[names(cluster1)]
+gr2 <- tot_expr[names(cluster2)]
+mat <- data.frame(y=c(cluster1,cluster2),reads=c(gr1,gr2))
+mat$y <- ifelse(mat$y==1,0,1)
+mod <- glm(mat$y~mat$reads)
+summary(mod)
+
+
+#Color on the base of the number of reads in normalized counts too
+sp <- ggplot(data.frame(PC1=PC1,PC2=PC2), aes(PC1, PC2))+geom_point(aes(color = apply(manual_set, 2,sum)))
+
+png('cell_number_color_norm.png', res=150, width=800, height=800)
+sp + scale_color_gradient(low = "blue", high = "red", name='Total number of reads')
+dev.off()
+
+#Linear model to classify the cells in one population or another. 
+tot_expr <- apply(manual_set, 2, mean)
+gr1 <- tot_expr[names(cluster1)]
+gr2 <- tot_expr[names(cluster2)]
+mat <- data.frame(y=c(cluster1,cluster2),reads=c(gr1,gr2))
+mat$y <- ifelse(mat$y==1,0,1)
+mod <- glm(mat$y~mat$reads)
+summary(mod)
+
+
+
+
+
+
+
+
